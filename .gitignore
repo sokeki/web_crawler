@@ -1,0 +1,15 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Test/coverage tools
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Generated index (too large/irrelevant to commit)
+data/index.json
+
+# IDE files
+.vscode/
