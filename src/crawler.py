@@ -11,6 +11,8 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
+import time
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
@@ -68,5 +70,44 @@ class Crawler:
         return links
 
     def crawl(self) -> dict[str, str]:
-        """Placeholder - full BFS loop not yet implemented."""
-        raise NotImplementedError("Not fully developed yet")
+        """
+        Crawl all pages reachable from base_url within the same domain.
+
+        Uses a BFS queue so pages are visited in breadth-first order.
+        Waits self.politeness_window seconds between successive requests.
+
+        Returns:
+            dict mapping URL -> HTML content for every successfully crawled page.
+        """
+        self.pages = {}
+        self._visited = set()
+        queue = [self.base_url]
+
+        while queue:
+            url = queue.pop(0)
+            normalised = self._normalise(url)
+
+            if normalised in self._visited:
+                continue
+            self._visited.add(normalised)
+
+            html = self._fetch(normalised)
+            if html is None:
+                continue
+
+            self.pages[normalised] = html
+            logger.info("Crawled: %s  (total: %d)", normalised, len(self.pages))
+
+            new_links = self._extract_links(html, normalised)
+            for link in new_links:
+                if link not in self._visited:
+                    queue.append(link)
+
+            if queue:
+                logger.info(
+                    "Waiting %ds (politeness window)...", self.politeness_window
+                )
+                time.sleep(self.politeness_window)
+
+        logger.info("Crawl complete. %d pages collected.", len(self.pages))
+        return self.pages

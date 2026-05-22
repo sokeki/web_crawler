@@ -104,5 +104,97 @@ class TestCrawlerFetch(unittest.TestCase):
         self.assertIsNone(self.crawler._fetch("https://example.com/notfound"))
 
 
+# ---------------------------------------------------------------------------
+# Integration tests for the full crawl() BFS loop
+# ---------------------------------------------------------------------------
+
+HOME_HTML = """
+<html><body>
+  <a href="/page2">Page 2</a>
+  <a href="/page3">Page 3</a>
+</body></html>
+"""
+PAGE2_HTML = """<html><body><a href="/">Home</a><p>Page two.</p></body></html>"""
+PAGE3_HTML = """<html><body><a href="/">Home</a><p>Page three.</p></body></html>"""
+
+
+def make_session_get(url_map):
+    def side_effect(url, **kwargs):
+        text = url_map.get(url, "<html></html>")
+        return make_response(text)
+
+    return side_effect
+
+
+class TestCrawlerCrawl(unittest.TestCase):
+
+    @patch("crawler.time.sleep")
+    def test_crawls_all_linked_pages(self, mock_sleep):
+        url_map = {
+            "https://example.com": HOME_HTML,
+            "https://example.com/page2": PAGE2_HTML,
+            "https://example.com/page3": PAGE3_HTML,
+        }
+        crawler = Crawler("https://example.com", politeness_window=0)
+        with patch.object(
+            crawler._session, "get", side_effect=make_session_get(url_map)
+        ):
+            pages = crawler.crawl()
+        self.assertEqual(len(pages), 3)
+        self.assertIn("https://example.com", pages)
+        self.assertIn("https://example.com/page2", pages)
+        self.assertIn("https://example.com/page3", pages)
+
+    @patch("crawler.time.sleep")
+    def test_does_not_revisit_pages(self, mock_sleep):
+        url_map = {
+            "https://example.com": HOME_HTML,
+            "https://example.com/page2": PAGE2_HTML,
+            "https://example.com/page3": PAGE3_HTML,
+        }
+        crawler = Crawler("https://example.com", politeness_window=0)
+        with patch.object(
+            crawler._session, "get", side_effect=make_session_get(url_map)
+        ) as mock_get:
+            crawler.crawl()
+        urls_fetched = [call.args[0] for call in mock_get.call_args_list]
+        self.assertEqual(len(urls_fetched), len(set(urls_fetched)))
+
+    @patch("crawler.time.sleep")
+    def test_respects_politeness_window(self, mock_sleep):
+        url_map = {
+            "https://example.com": HOME_HTML,
+            "https://example.com/page2": PAGE2_HTML,
+        }
+        crawler = Crawler("https://example.com", politeness_window=6)
+        with patch.object(
+            crawler._session, "get", side_effect=make_session_get(url_map)
+        ):
+            crawler.crawl()
+        mock_sleep.assert_called_with(6)
+
+    @patch("crawler.time.sleep")
+    def test_skips_failed_pages_and_continues(self, mock_sleep):
+        def side_effect(url, **kwargs):
+            if "page2" in url:
+                resp = make_response("", 404)
+                resp.raise_for_status.side_effect = __import__(
+                    "requests"
+                ).exceptions.HTTPError("404")
+                return resp
+            return make_response(
+                {
+                    "https://example.com": HOME_HTML,
+                    "https://example.com/page3": PAGE3_HTML,
+                }.get(url, "<html></html>")
+            )
+
+        crawler = Crawler("https://example.com", politeness_window=0)
+        with patch.object(crawler._session, "get", side_effect=side_effect):
+            pages = crawler.crawl()
+        self.assertNotIn("https://example.com/page2", pages)
+        self.assertIn("https://example.com/page3", pages)
+
+
 if __name__ == "__main__":
     unittest.main()
