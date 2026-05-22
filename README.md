@@ -16,23 +16,19 @@ index of all words found across the site, and lets you query it interactively.
 
 ## Project Structure
 
-search_engine/
-├── src/          # Source code
-├── tests/        # Test suite
-├── data/         # Generated index file (git-ignored)
-├── requirements.txt
-└── README.md
+    search_engine/
+    ├── src/          # Source code
+    ├── tests/        # Test suite
+    ├── data/         # Generated index file (git-ignored)
+    ├── requirements.txt
+    └── README.md
 
 ## Setup
 
-```bash
-pip install -r requirements.txt
-```
+    pip install -r requirements.txt
 
 ## Usage
 
-```bash
-python src/main.py
-```
+    python src/main.py
 
 *Full usage instructions to be added once implementation is complete.*
